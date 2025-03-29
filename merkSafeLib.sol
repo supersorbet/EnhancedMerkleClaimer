@@ -36,8 +36,8 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
     error InvalidSignature();
     /// @notice Error thrown for invalid amount parameters
     error InvalidAmount();
-    /// @notice Error thrown when contract is in emergency stop state
-    error EmergencyShutdown();
+    /// @notice Error thrown when contract is in EMS stop state
+    error EMSShutdown();
     /// @notice Error thrown when root updates are disabled
     error RootUpdateDisabled();
     /// @notice Error thrown when contract balance is insufficient for claim
@@ -82,7 +82,7 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
     /// @dev Set through startClaimPeriod function
     uint256 public claimPeriodStart;
 
-    /// @notice Flag indicating if contract is in emergency stop state
+    /// @notice Flag indicating if contract is in EMS stop state
     bool public stopped;
 
     /// @notice Flag indicating if merkle root updates are enabled
@@ -103,73 +103,6 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
     
     /// @notice Mapping of user addresses to their claim data
     mapping(address => UserData) public userData;
-
-    /// @notice Emitted when new merkle root is set
-    /// @param merkleRoot New merkle root
-    /// @param totalAllocation Total token allocation (kept for compatibility)
-    event RootSet(bytes32 merkleRoot, uint256 totalAllocation);
-
-    /// @notice Emitted when merkle root is updated
-    /// @param oldRoot Previous merkle root
-    /// @param newRoot New merkle root
-    event RootUpdated(bytes32 oldRoot, bytes32 newRoot);
-
-    /// @notice Emitted when root update status changes
-    /// @param enabled New status of root updates
-    event RootUpdateStatusChanged(bool enabled);
-
-    /// @notice Emitted when manual claim is added
-    /// @param user Address of user
-    /// @param amount Claimable amount
-    event ManualClaimAdded(address indexed user, uint256 amount);
-
-    /// @notice Emitted when manual claim is updated
-    /// @param user Address of user
-    /// @param oldAmount Previous claimable amount
-    /// @param newAmount New claimable amount
-    event ManualClaimUpdated(address indexed user, uint256 oldAmount, uint256 newAmount);
-
-    /// @notice Emitted when user acknowledges claim
-    /// @param claimant Address of claimer
-    /// @param amount Amount acknowledged
-    /// @param messageHash Hash of acknowledgment message
-    /// @param nonce Nonce used in acknowledgment
-    event Acknowledged(
-        address indexed claimant, 
-        uint256 amount, 
-        bytes32 messageHash,
-        uint256 nonce
-    );
-
-    /// @notice Emitted when tokens are claimed
-    /// @param claimant Address of claimer
-    /// @param amount Amount claimed
-    /// @param timestamp When claim occurred
-    event Claimed(
-        address indexed claimant, 
-        uint256 amount, 
-        uint256 timestamp
-    );
-
-    /// @notice Emitted when claim period starts
-    /// @param startTime Timestamp when period started
-    event ClaimPeriodStarted(uint256 startTime);
-
-    /// @notice Emitted when emergency stop status changes
-    /// @param status New emergency stop status
-    event EmergencyShutdownSet(bool status);
-
-    /// @notice Emitted when reimbursement is claimed
-    /// @param user Address of user
-    /// @param amount Amount claimed
-    /// @param stakedBalance User's staked balance
-    /// @param timestamp When claim occurred
-    event ReimbursementClaimed(
-        address indexed user,
-        uint256 amount,
-        uint256 stakedBalance,
-        uint256 timestamp
-    );
 
     /// @notice Contract constructor
     /// @dev Initializes EIP-712 domain separator and enables root updates
@@ -286,7 +219,7 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
         bytes32[] calldata _merkleProof,
         bytes calldata _signature
     ) external whenNotPaused nonReentrant {
-        if (stopped) revert EmergencyShutdown();
+        if (stopped) revert EMSShutdown();
         if (_amount == 0) revert InvalidAmount();
         if (claimPeriodStart == 0) revert ClaimPeriodNotStarted();
             
@@ -324,7 +257,7 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
     /// @dev Requires prior acknowledgment and sufficient contract balance
     /// @dev Transfers tokens directly to user upon successful claim
     function claim() external nonReentrant whenNotPaused {
-        if (stopped) revert EmergencyShutdown();
+        if (stopped) revert EMSShutdown();
 
         UserData storage user = userData[msg.sender];
         
@@ -454,16 +387,16 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
         emit RootUpdateStatusChanged(_enabled);
     }
 
-    /// @notice Sets emergency stop status
+    /// @notice Sets EMS stop status
     /// @dev Only callable by owner
-    /// @param _status Whether to enable emergency stop
-    function emergencyStop(bool _status) external onlyOwner {
+    /// @param _status Whether to enable EMS stop
+    function EMSStop(bool _status) external onlyOwner {
         stopped = _status;
-        emit EmergencyShutdownSet(_status);
+        emit EMSShutdownSet(_status);
     }
 
     /// @notice Allows owner to withdraw tokens
-    /// @dev Only callable in emergency stop state
+    /// @dev Only callable in EMS stop state
     /// @param _token Token address to withdraw
     /// @param _amount Amount to withdraw
     function withdrawTokens(
@@ -472,7 +405,7 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
     ) external onlyOwner {
         if (_token == address(0)) revert InvalidAmount();
         if (_amount == 0) revert InvalidAmount();
-        if (!stopped) revert EmergencyShutdown();
+        if (!stopped) revert EMSShutdown();
         
         SafeTransferLib.safeTransfer(_token, owner(), _amount);
     }
@@ -498,6 +431,74 @@ contract MerkleClaimer is Ownable, ReentrancyGuard, Pausable, EIP712 {
     function unpause() external onlyOwner {
         _unpause();
     }
+
+/// @notice Emitted when new merkle root is set
+    /// @param merkleRoot New merkle root
+    /// @param totalAllocation Total token allocation (kept for compatibility)
+    event RootSet(bytes32 merkleRoot, uint256 totalAllocation);
+
+    /// @notice Emitted when merkle root is updated
+    /// @param oldRoot Previous merkle root
+    /// @param newRoot New merkle root
+    event RootUpdated(bytes32 oldRoot, bytes32 newRoot);
+
+    /// @notice Emitted when root update status changes
+    /// @param enabled New status of root updates
+    event RootUpdateStatusChanged(bool enabled);
+
+    /// @notice Emitted when manual claim is added
+    /// @param user Address of user
+    /// @param amount Claimable amount
+    event ManualClaimAdded(address indexed user, uint256 amount);
+
+    /// @notice Emitted when manual claim is updated
+    /// @param user Address of user
+    /// @param oldAmount Previous claimable amount
+    /// @param newAmount New claimable amount
+    event ManualClaimUpdated(address indexed user, uint256 oldAmount, uint256 newAmount);
+
+    /// @notice Emitted when user acknowledges claim
+    /// @param claimant Address of claimer
+    /// @param amount Amount acknowledged
+    /// @param messageHash Hash of acknowledgment message
+    /// @param nonce Nonce used in acknowledgment
+    event Acknowledged(
+        address indexed claimant, 
+        uint256 amount, 
+        bytes32 messageHash,
+        uint256 nonce
+    );
+
+    /// @notice Emitted when tokens are claimed
+    /// @param claimant Address of claimer
+    /// @param amount Amount claimed
+    /// @param timestamp When claim occurred
+    event Claimed(
+        address indexed claimant, 
+        uint256 amount, 
+        uint256 timestamp
+    );
+
+    /// @notice Emitted when claim period starts
+    /// @param startTime Timestamp when period started
+    event ClaimPeriodStarted(uint256 startTime);
+
+    /// @notice Emitted when EMS stop status changes
+    /// @param status New EMS stop status
+    event EMSShutdownSet(bool status);
+
+    /// @notice Emitted when reimbursement is claimed
+    /// @param user Address of user
+    /// @param amount Amount claimed
+    /// @param stakedBalance User's staked balance
+    /// @param timestamp When claim occurred
+    event ReimbursementClaimed(
+        address indexed user,
+        uint256 amount,
+        uint256 stakedBalance,
+        uint256 timestamp
+    );
+
 }
 
 /// @title IBasedFarm Interface
